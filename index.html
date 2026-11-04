@@ -39,6 +39,9 @@
     --cds-surface-popover: #1b2a2d; --cds-border: #2f4245; --cds-shadow-popover: 0 6px 20px rgba(0, 0, 0, .45); --cds-text-secondary: #93a6a9; color-scheme: dark; }
   body { background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); }
   .snap-wrap { max-width: 78rem; margin-inline: auto; padding-block: 1.5rem 3rem; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  [hidden] { display: none !important; }
+  *, *::before, *::after { box-sizing: border-box; }
+  img { max-width: 100%; }
   .dash-skeleton { background: var(--cds-chart-grid); border-radius: var(--cds-radius); }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
