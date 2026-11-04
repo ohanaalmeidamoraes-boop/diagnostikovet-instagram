@@ -130,6 +130,9 @@
   .ig-up { color: var(--color-ok); }
   .ig-down { color: var(--color-bad); }
   .ig-count { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .ig-hb-row, .ig-chart svg rect[fill="transparent"], .ig-chart svg circle { cursor: pointer; }
+  .ig-table tr.ig-click { cursor: pointer; }
+  .ig-table tr.ig-click:hover td { background: var(--cds-chart-grid); }
   [data-dash-source-state=empty] { color: transparent; }
   [data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
   .ig-fail { display: flex; align-items: center; justify-content: center; gap: .4rem; min-height: inherit; height: 100%; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
@@ -1111,7 +1114,7 @@
         tr.append(bar);
         const val = document.createElement('span'); val.className = 'ig-hb-val'; val.textContent = s.fmt(+r[s.key]) + (s.suffix ? s.suffix(r) : '');
         row.append(lab, tr, val);
-        row.addEventListener('mousemove', (e) => {
+        const showTip = (e) => {
           const box = el.getBoundingClientRect();
           tip.replaceChildren();
           const t = document.createElement('div'); t.className = 't'; t.textContent = opt.label(r); tip.append(t);
@@ -1119,8 +1122,10 @@
           tip.hidden = false;
           tip.style.left = Math.max(0, Math.min(e.clientX - box.left + 12, box.width - tip.offsetWidth - 4)) + 'px';
           tip.style.top = (e.clientY - box.top + 12) + 'px';
-        });
-        row.addEventListener('mouseleave', () => { tip.hidden = true; });
+        };
+        row.addEventListener('mousemove', showTip);
+        row.addEventListener('click', showTip);
+        row.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') tip.hidden = true; });
         el.append(row);
       });
     });
@@ -1131,6 +1136,11 @@
 
 <script>
 (() => {
+  /* ---------- Tap or click outside a chart hides its tooltip ---------- */
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.ig-chart, .ig-hb')) document.querySelectorAll('.ig-tip').forEach((t) => { t.hidden = true; });
+  });
+
   /* ---------- Tabs and period ---------- */
   const show = (name) => {
     document.querySelectorAll('.ig-tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
@@ -1197,8 +1207,8 @@
       let acc = 0;
       keys.forEach((k, i) => { const v = Math.max(0, +r[k.key] || 0); g.append('rect').attr('x', x(r.date)).attr('width', x.bandwidth()).attr('y', y(acc + v)).attr('height', y(acc) - y(acc + v)).attr('fill', dash.colors[i]); acc += v; });
       g.append('rect').attr('x', x(r.date) - x.step() * x.paddingInner() / 2).attr('width', x.step()).attr('y', m.t).attr('height', H - m.b - m.t).attr('fill', 'transparent')
-        .on('mousemove', (e) => { fillTip(tip, r.date.slice(8, 10) + '/' + r.date.slice(5, 7) + '/' + r.date.slice(0, 4), keys.map((k, i) => [dash.colors[i], k.name, F.int(+r[k.key] || 0)]).concat([[null, 'Total', F.int(tot(r))]])); place(el, tip, e); })
-        .on('mouseleave', () => { tip.hidden = true; });
+        .on('mousemove click', (e) => { fillTip(tip, r.date.slice(8, 10) + '/' + r.date.slice(5, 7) + '/' + r.date.slice(0, 4), keys.map((k, i) => [dash.colors[i], k.name, F.int(+r[k.key] || 0)]).concat([[null, 'Total', F.int(tot(r))]])); place(el, tip, e); })
+        .on('pointerleave', (e) => { if (e.pointerType !== 'mouse') return; tip.hidden = true; });
     });
   };
   const lastDays = (n) => [...dash.data('daily').data].sort((a, b) => a.date < b.date ? -1 : 1).slice(-n);
@@ -1231,8 +1241,8 @@
     const tip = tipFor(el);
     const dot = svg.append('circle').attr('r', 4).attr('fill', dash.colors[0]).attr('opacity', 0);
     svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.date) - x.step() * 0.15).attr('width', x.step()).attr('y', m.t).attr('height', H - m.b - m.t).attr('fill', 'transparent')
-      .on('mousemove', (e, r) => { dot.attr('cx', x(r.date) + x.bandwidth() / 2).attr('cy', y(+r.reach)).attr('opacity', 1); fillTip(tip, dfmt(r.date), [[dash.colors[0], 'Alcance', F.int(+r.reach)], [dash.colors[2], 'Novos seguidores', F.int(+r.follower_count_1d)], [null, 'Entradas e saídas', F.int(+r.follows_and_unfollows || 0)]]); place(el, tip, e); })
-      .on('mouseleave', () => { tip.hidden = true; dot.attr('opacity', 0); });
+      .on('mousemove click', (e, r) => { dot.attr('cx', x(r.date) + x.bandwidth() / 2).attr('cy', y(+r.reach)).attr('opacity', 1); fillTip(tip, dfmt(r.date), [[dash.colors[0], 'Alcance', F.int(+r.reach)], [dash.colors[2], 'Novos seguidores', F.int(+r.follower_count_1d)], [null, 'Entradas e saídas', F.int(+r.follows_and_unfollows || 0)]]); place(el, tip, e); })
+      .on('pointerleave', (e) => { if (e.pointerType !== 'mouse') return; tip.hidden = true; dot.attr('opacity', 0); });
   });
 
   // Monthly posts + avg reach
@@ -1255,8 +1265,8 @@
     svg.append('g').selectAll('circle').data(rows).join('circle').attr('cx', (r) => x(r.mes) + x.bandwidth() / 2).attr('cy', (r) => y2(r.alcance_medio)).attr('r', 3).attr('fill', dash.colors[0]);
     const tip = tipFor(el);
     svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', (r) => x(r.mes) - x.step() * 0.175).attr('width', x.step()).attr('y', m.t).attr('height', H - m.b - m.t).attr('fill', 'transparent')
-      .on('mousemove', (e, r) => { fillTip(tip, lab(r.mes), [[null, 'Posts', F.int(r.posts)], [dash.colors[0], 'Alcance médio', F.int(r.alcance_medio)]]); place(el, tip, e); })
-      .on('mouseleave', () => { tip.hidden = true; });
+      .on('mousemove click', (e, r) => { fillTip(tip, lab(r.mes), [[null, 'Posts', F.int(r.posts)], [dash.colors[0], 'Alcance médio', F.int(r.alcance_medio)]]); place(el, tip, e); })
+      .on('pointerleave', (e) => { if (e.pointerType !== 'mouse') return; tip.hidden = true; });
   });
 
   // Reels scatter: skip rate vs reach
@@ -1274,8 +1284,8 @@
     const tip = tipFor(el);
     svg.append('g').selectAll('circle').data(rows).join('circle').attr('cx', (r) => x(r.pulo_pct)).attr('cy', (r) => y(r.alcance)).attr('r', 5)
       .attr('fill', (r) => r.pulo_pct > 75 ? 'var(--cds-chart-status-critical)' : dash.colors[0]).attr('fill-opacity', 0.75)
-      .on('mousemove', (e, r) => { fillTip(tip, r.data.slice(8, 10) + '/' + r.data.slice(5, 7) + ' · ' + (r.legenda || '').slice(0, 48), [[null, 'Alcance', F.int(r.alcance)], [null, 'Pulo', F.dec1(r.pulo_pct) + '%'], [null, 'Tempo médio', F.dec1(r.seg_medio) + ' s']]); place(el, tip, e); })
-      .on('mouseleave', () => { tip.hidden = true; });
+      .on('mousemove click', (e, r) => { fillTip(tip, r.data.slice(8, 10) + '/' + r.data.slice(5, 7) + ' · ' + (r.legenda || '').slice(0, 48), [[null, 'Alcance', F.int(r.alcance)], [null, 'Pulo', F.dec1(r.pulo_pct) + '%'], [null, 'Tempo médio', F.dec1(r.seg_medio) + ' s']]); place(el, tip, e); })
+      .on('pointerleave', (e) => { if (e.pointerType !== 'mouse') return; tip.hidden = true; });
   });
 
   // Horizontal bars
@@ -1332,8 +1342,8 @@
       let acc = 0;
       keys.forEach((k, i) => { const v = +r[k.key] || 0; g.append('rect').attr('x', x(r.mes) + off).attr('width', bw).attr('y', y(acc + v)).attr('height', y(acc) - y(acc + v)).attr('fill', dash.colors[i]).attr('opacity', r.dias < 25 ? 0.45 : 1); acc += v; });
       g.append('rect').attr('x', x(r.mes) - x.step() * 0.125).attr('width', x.step()).attr('y', m.t).attr('height', H - m.b - m.t).attr('fill', 'transparent')
-        .on('mousemove', (e) => { fillTip(tip, mlab(r.mes) + (r.dias < 25 ? ' (parcial, ' + r.dias + ' dias)' : ''), keys.map((k, i) => [dash.colors[i], k.name, F.int(+r[k.key] || 0)]).concat([[null, 'Total', F.int(tot(r))]])); place(el, tip, e); })
-        .on('mouseleave', () => { tip.hidden = true; });
+        .on('mousemove click', (e) => { fillTip(tip, mlab(r.mes) + (r.dias < 25 ? ' (parcial, ' + r.dias + ' dias)' : ''), keys.map((k, i) => [dash.colors[i], k.name, F.int(+r[k.key] || 0)]).concat([[null, 'Total', F.int(tot(r))]])); place(el, tip, e); })
+        .on('pointerleave', (e) => { if (e.pointerType !== 'mouse') return; tip.hidden = true; });
     });
   };
   dash.draw('ano_views', (el) => { if (!window.igReady(el, ['mensal_ano'])) return; monthStack(el, dash.data('mensal_ano').data, [{ key: 'views_nao_seg', name: 'Não seguidores' }, { key: 'views_seg', name: 'Seguidores' }]); });
@@ -1349,6 +1359,12 @@
   const cell = (tr, text, cls) => { const td = document.createElement('td'); td.textContent = text; if (cls) td.className = cls; tr.append(td); return td; };
   const linkCell = (tr, text, href) => { const td = cell(tr, '', 'cap'); if (href) { const a = document.createElement('a'); a.href = href; a.target = '_blank'; a.rel = 'noopener'; a.textContent = text; td.append(a); } else td.textContent = text; return td; };
   const dbr = (s) => s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4);
+  const openRow = (tr, href) => {
+    if (!href) return;
+    tr.classList.add('ig-click');
+    tr.title = 'Abrir o post no Instagram';
+    tr.addEventListener('click', (e) => { if (!e.target.closest('a')) { const w = window.open(href, '_blank', 'noopener'); if (w) w.opener = null; } });
+  };
   dash.draw('tbl_sem', (tb) => {
     tb.replaceChildren();
     const g = dash.data('semestres'); if (g.status !== 'ok') return;
@@ -1384,7 +1400,7 @@
     const g = dash.data('top_ano'); if (g.status !== 'ok') return;
     g.data.forEach((r) => {
       const tr = document.createElement('tr'); tr.dataset.key = r.media_id;
-      cell(tr, dbr(r.data), 'l'); cell(tr, r.formato, 'l'); cell(tr, r.tema, 'l'); linkCell(tr, r.legenda, r.link);
+      cell(tr, dbr(r.data), 'l'); cell(tr, r.formato, 'l'); cell(tr, r.tema, 'l'); linkCell(tr, r.legenda, r.link); openRow(tr, r.link);
       cell(tr, F.int(r.alcance)); cell(tr, F.int(r.interacoes)); cell(tr, F.int(r.salvos)); cell(tr, F.int(r.compart));
       tb.append(tr);
     });
@@ -1412,7 +1428,7 @@
     const rows = filteredPosts(); if (!rows) return;
     rows.forEach((r) => {
       const tr = document.createElement('tr'); tr.dataset.key = r.media_id;
-      cell(tr, dbr(r.data), 'l'); cell(tr, r.formato, 'l'); cell(tr, r.tema, 'l'); linkCell(tr, r.legenda, r.link);
+      cell(tr, dbr(r.data), 'l'); cell(tr, r.formato, 'l'); cell(tr, r.tema, 'l'); linkCell(tr, r.legenda, r.link); openRow(tr, r.link);
       cell(tr, F.int(r.alcance)); cell(tr, F.int(r.views)); cell(tr, F.int(r.interacoes)); cell(tr, F.dec2(r.taxa_eng_pct)); cell(tr, F.int(r.salvos)); cell(tr, F.int(r.compart)); cell(tr, F.int(r.comentarios));
       tb.append(tr);
     });
@@ -1423,7 +1439,7 @@
     const g = dash.data('reels_tbl'); if (g.status !== 'ok') return;
     g.data.forEach((r) => {
       const tr = document.createElement('tr'); tr.dataset.key = r.media_id;
-      cell(tr, dbr(r.data), 'l'); linkCell(tr, r.legenda || '(sem legenda)', r.link);
+      cell(tr, dbr(r.data), 'l'); linkCell(tr, r.legenda || '(sem legenda)', r.link); openRow(tr, r.link);
       cell(tr, F.int(r.alcance)); cell(tr, F.int(r.views)); cell(tr, F.dec1(r.seg_medio)); cell(tr, F.dec1(r.pulo_pct), r.pulo_pct > 75 ? 'bad' : ''); cell(tr, r.interacoes == null ? '—' : F.int(r.interacoes));
       tb.append(tr);
     });
